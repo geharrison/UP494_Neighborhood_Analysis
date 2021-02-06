@@ -1,12 +1,12 @@
 # Neighborhood Analysis: Assignments
 
-## **Name:** Your Name Here
+## **Name:** Gretchen Harrison
 
 ## Contents:
 
 | Assignment | Upload Date (latest) | Notes |
 |-|-|-|
-| Grading Contract |  |  |
+| Grading Contract | 02/05 |  |
 | R Learner's Permit |  |  |
 | Class Reflections |  |  |
 | Polished Lab Notebooks |  |  |
