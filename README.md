@@ -6,7 +6,7 @@
 
 | Assignment | Upload Date (latest) | Notes |
 |-|-|-|
-| Grading Contract | 02/05 |  |
+| Grading Contract | 02/05/2021 | This folder contains the initial draft of my learning contract. |
 | R Learner's Permit |  |  |
 | Class Reflections |  |  |
 | Polished Lab Notebooks |  |  |
