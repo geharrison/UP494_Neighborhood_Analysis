@@ -8,7 +8,7 @@
 |-|-|-|
 | Grading Contract | 02/05/2021 | This folder contains the initial draft of my learning contract. |
 | R Learner's Permit |  |  |
-| Class Reflections |  |  |
+| Class Reflections | 02/15/2021 | Contains Week 1 reflection |
 | Polished Lab Notebooks |  |  |
 | Final Project Proposal |  |  |
 | Final Project Background |  |  |
