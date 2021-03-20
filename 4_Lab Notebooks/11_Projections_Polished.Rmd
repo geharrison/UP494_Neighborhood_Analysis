@@ -1,0 +1,320 @@
+---
+title: "Projecting Chicago's Population"
+author: "Gretchen Harrison"
+date: "3/19/2021"
+output:
+  html_notebook:
+    toc: yes
+  pdf_document:
+    toc: yes
+  html_document:
+    df_print: paged
+    toc: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+# Introduction
+
+*This is a polished version of the Session 11 lab* 
+
+A projection is defined as an extrapolation of the characteristics of the future based upon the past and a set of assumptions. As planners, we use projections to forecast what a particular place will be like in the future. Forecasts give planners the ability to promote goals and actions that are reasonable and aligned with ongoing trends. In this lab, I will be examining demographic data focused on Chicago from 1970 to 2010 and create population forecasts to analyze the past, present, and future of the city. 
+
+The first part of my analysis will highlight trends across the city's 77 Community Areas. These areas were defined in the 1920s and based upon the social and demographic characteristics of the neighborhoods contained within. Unlike Census tracts, neighborhoods, and aldermanic wards, the boundaries of Community Areas are relatively fixed. The only changes have been the addition of O'Hare and the split of Edgewater into two distinct areas: Uptown and Edgewater.
+
+```{r ca_map, out.height=250}
+knitr::include_graphics("01_CAs.png")
+```
+
+# Population Trends Across Community Areas
+
+Overall, the City of Chicago's population has declined by about 1 million residents over the past fifty years. As shown in the table below, the city's population went from 3.3 million in 1970 to 2.7 million in 2010. Still, Chicago is not necessarily considered a shrinking city. The population decline has leveled off in recent decades, having gone from about 300,000 resident lost per decade to roughly 100,000. Actually, the most recent [census estimates](https://www.census.gov/quickfacts/chicagocityillinois) from 2019 suggest that the decline has stagnated in the 2010s with population numbers remaining relatively unchanged.
+
+```{r}
+ca_pop <- read_csv("data/ca_pop.csv", col_types = cols(CA = col_character(), Year = col_character()))
+
+ca_pop %>% group_by(Year) %>% summarise(Pop = sum(Pop))
+
+ca_pop %>% group_by(Year) %>% summarise(Pop = sum(Pop)) %>% ggplot(aes(x=Year, y=Pop))+ geom_line(group=1)+ geom_point()+ theme_classic()
+```
+
+The map below shows population change in Chicago between 1970 and 2010 by Community Area. O'Hare and the Loop were excluded from this map as they are outliers that have experienced exceptional growth. With those outliers removed, it's clear that the areas that have grown the most are on the north- and southwest sides and the areas that have shrunk the most are on the west and south sides. There are several Community Areas throughout the city that have not changed much, including on the north side and far south side.
+
+According to this data, the community area experiencing the most growth is West Lawn. A [CMAP study](https://www.cmap.illinois.gov/documents/10180/126764/West+Lawn.pdf) on West Lawn from last June suggests that the growth in the community during this period is attributed to in-migration of Latino or Hispanic residents. Since 2010 the population of West Lawn has actually decreased by 3.5 percent. So, it's important to keep in mind that a lot of the data that we draw upon for projections and forecast are typically supported by underlying trends. It seems as though the migrant population in Chicago is steadily stagnating, and that many immigrants are opting to live elsewhere as the city becomes less affordable. Population projections alone can not be used to determine what the future for community areas like West Lawn will look like in ten or fifty years - other factors must be considered.
+
+This data also suggests that the area experiencing the most shrinkage in Chicago is Washington Park. [CMAP's Study](https://www.cmap.illinois.gov/documents/10180/126764/Washington+Park.pdf) on Washington Park reveals that shrinkage in this area has stagnated over the last decade. Washington Park is an area near the Loop with a population that's largely young, Black, and considered to be in extreme poverty. Again, it seems as though the population is shrinking in this area as residents are being cut off from access to affordable housing and other opportunities.
+
+```{r}
+ca_pop %>% mutate(Pop = round(Pop, 0)) %>% pivot_wider(names_from = Year, values_from = Pop) %>% arrange(Community)
+
+ca_pop %>% ggplot(aes(x=Year, y=Pop, group=Community))+ geom_line()+ theme_classic()
+
+wide_table <- ca_pop %>% mutate(Pop = round(Pop, 0)) %>% pivot_wider(names_from = Year, values_from = Pop, names_prefix = "Y_") %>% arrange(Community) %>% mutate(Change70_10 = Y_2010-Y_1970, PChange70_10 = ((Y_2010-Y_1970)/Y_1970)*100, Change_Type = case_when(
+    PChange70_10 < -10 ~ "Declining",
+    PChange70_10 > 10 ~ "Growing",
+    between(PChange70_10, -10, 10)~ "Low Change"))
+
+wide_table %>% group_by(Change_Type) %>% summarise(Pop = sum(Y_2010))
+
+library(sf)
+CCA <- st_read("data/CA_Shapefile/CCA.shp")
+
+ggplot()+geom_sf(data=CCA)
+CCA <- left_join(CCA, wide_table, by=c("area_numbe" = "CA"))
+
+ggplot() + geom_sf(data=CCA %>% filter(PChange70_10 <= 80), aes(fill = PChange70_10)) + labs(fill = "Percent Change", title = "Chicago population change by Community Area, 1970 - 2010") + theme(axis.title.x = element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank(), axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
+```
+
+```{r include = FALSE}
+library(tidycensus)
+census_api_key("1c21eb7b81694c448307c9d6819b1a52b997258c")
+
+c2010 <- get_acs("place", state="IL", table = "B01001", year = 2010, survey = "acs1")
+
+c2010 <- c2010 %>% filter(NAME == "Chicago city, Illinois") %>% 
+  mutate(variable = str_replace(variable, "B01001_0", "")) %>% filter(!variable %in% c("01", "02", "26"))
+
+c2010<-c2010 %>% 
+  mutate(variable_cat = case_when(
+    variable %in% c("03", "27") ~ "Under 5", 
+    variable %in% c("04", "28") ~ "5 to 9", 
+    variable %in% c("05", "29") ~ "10 to 14",
+    variable %in% c("06", "30") ~ "15 to 19",
+    variable %in% c("07", "31") ~ "15 to 19",
+    variable %in% c("08", "32") ~ "20 to 24",
+    variable %in% c("09", "33") ~ "20 to 24",
+    variable %in% c("10", "34") ~ "20 to 24",
+    variable %in% c("11", "35") ~ "25 to 29",
+    variable %in% c("12", "36") ~ "30 to 34",
+    variable %in% c("13", "37") ~ "35 to 39",
+    variable %in% c("14", "38") ~ "40 to 44",
+    variable %in% c("15", "39") ~ "45 to 49",
+    variable %in% c("16", "40") ~ "50 to 54",
+    variable %in% c("17", "41") ~ "55 to 59",
+    variable %in% c("18", "42") ~ "60 to 64",
+    variable %in% c("19", "43") ~ "60 to 64",
+    variable %in% c("20", "44") ~ "65 to 69",
+    variable %in% c("21", "45") ~ "65 to 69",
+    variable %in% c("22", "46") ~ "70 to 74",
+    variable %in% c("23", "47") ~ "75 to 79",
+    variable %in% c("24", "48") ~ "80 to 84",
+    variable %in% c("25", "49") ~ "85 or Older"))
+
+c2010<-c2010 %>% 
+  mutate(sex_cat = case_when(
+    variable %in% c("03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25") ~ "Male", 
+    variable %in% c("27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49") ~ "Female"))
+
+c2010<-c2010 %>% 
+  group_by(variable_cat, sex_cat) %>% 
+  summarise(Pop = sum(estimate))
+
+c2010<-c2010 %>% pivot_wider(names_from = sex_cat, values_from = Pop)
+
+c2015 <- get_acs("place", state="IL", table = "B01001", year = 2015, survey = "acs1")
+
+c2015 <- c2015 %>% filter(NAME == "Chicago city, Illinois") %>% 
+  mutate(variable = str_replace(variable, "B01001_0", "")) %>% filter(!variable %in% c("01", "02", "26"))
+
+c2015<-c2015 %>% 
+  mutate(variable_cat = case_when(
+    variable %in% c("03", "27") ~ "Under 5", 
+    variable %in% c("04", "28") ~ "5 to 9", 
+    variable %in% c("05", "29") ~ "10 to 14",
+    variable %in% c("06", "30") ~ "15 to 19",
+    variable %in% c("07", "31") ~ "15 to 19",
+    variable %in% c("08", "32") ~ "20 to 24",
+    variable %in% c("09", "33") ~ "20 to 24",
+    variable %in% c("10", "34") ~ "20 to 24",
+    variable %in% c("11", "35") ~ "25 to 29",
+    variable %in% c("12", "36") ~ "30 to 34",
+    variable %in% c("13", "37") ~ "35 to 39",
+    variable %in% c("14", "38") ~ "40 to 44",
+    variable %in% c("15", "39") ~ "45 to 49",
+    variable %in% c("16", "40") ~ "50 to 54",
+    variable %in% c("17", "41") ~ "55 to 59",
+    variable %in% c("18", "42") ~ "60 to 64",
+    variable %in% c("19", "43") ~ "60 to 64",
+    variable %in% c("20", "44") ~ "65 to 69",
+    variable %in% c("21", "45") ~ "65 to 69",
+    variable %in% c("22", "46") ~ "70 to 74",
+    variable %in% c("23", "47") ~ "75 to 79",
+    variable %in% c("24", "48") ~ "80 to 84",
+    variable %in% c("25", "49") ~ "85 or Older")) 
+
+c2015<-c2015 %>% 
+  mutate(sex_cat = case_when(
+    variable %in% c("03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25") ~ "Male", 
+    variable %in% c("27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49") ~ "Female"))
+
+c2015<-c2015 %>% 
+  group_by(variable_cat, sex_cat) %>% 
+  summarise(Pop = sum(estimate))
+
+c2015<-c2015 %>% pivot_wider(names_from = sex_cat, values_from = Pop)
+
+
+```
+
+# Trend Projection
+
+```{r}
+knitr::include_graphics("trend_proj.png")
+```
+The graph above shows population projections for the City of Chicago that were computed in an Excel workbook developed by Richard Klosterman. The graph includes four different types of projections: linear, geometric, parabolic, and gompertz. In his book *Planning Support Methods: Urban and Regional Analysis and Projection,* Klosterman outlines each projection type and describes what their individual pros and cons are. The linear trend curve plots a straight line, assuming constant incremental growth or decline. The geometric curve describes population as growing by a constant "growth rate," often producing unrealistically high projections. The parabolic curve has a constantly changing slope and is typically used for slow growing areas. Lastly, the gompertz curve is an asymptotic curve that acknowledges growth limits.
+
+Based upon the projections and descriptions provided above, I believe that the gompertz and linear curves are the most realistic. The geometric curve seems to be realistic as well, but I think it suggests stronger stagnation than decline when compared to other projections. It's clear that Chicago's population is declining and will likely not make a dramatic comeback by 2050, so the parabolic curve seems to be the least realistic. Based on these projections, it seems that Chicago will have a population of roughly 2.1 million by 2050. 
+
+Still, this does not factor in economic, environmental, or health factors that could have a dramatic impact on the city's population in the future. Such events are hard to predict and require creating several different scenarios. It's hard to imagine how the COVID-19 pandemic will impact population trends in the long run. Will people move elsewhere if they can continue working remotely? Would the city become more affordable if obsolete office buildings were retrofitted into affordable housing? As global warming continues, will Chicago become a more attractive place to live, in terms of climate?
+
+# Cohort Component Projection
+
+In his book, Klosterman describes another projection method type: cohort-component. These methods "disaggregate a population into age, sex, and racial cohorts, and deal separately with three components of population change - fertility, mortality, and migration."
+
+```{r include = FALSE}
+library(tidycensus)
+census_api_key("1c21eb7b81694c448307c9d6819b1a52b997258c")
+
+c2010 <- get_acs("place", state="IL", table = "B01001", year = 2010, survey = "acs1")
+
+c2010 <- c2010 %>% filter(NAME == "Chicago city, Illinois") %>% 
+  mutate(variable = str_replace(variable, "B01001_0", "")) %>% filter(!variable %in% c("01", "02", "26"))
+
+c2010<-c2010 %>% 
+  mutate(variable_cat = case_when(
+    variable %in% c("03", "27") ~ "Under 5", 
+    variable %in% c("04", "28") ~ "5 to 9", 
+    variable %in% c("05", "29") ~ "10 to 14",
+    variable %in% c("06", "30") ~ "15 to 19",
+    variable %in% c("07", "31") ~ "15 to 19",
+    variable %in% c("08", "32") ~ "20 to 24",
+    variable %in% c("09", "33") ~ "20 to 24",
+    variable %in% c("10", "34") ~ "20 to 24",
+    variable %in% c("11", "35") ~ "25 to 29",
+    variable %in% c("12", "36") ~ "30 to 34",
+    variable %in% c("13", "37") ~ "35 to 39",
+    variable %in% c("14", "38") ~ "40 to 44",
+    variable %in% c("15", "39") ~ "45 to 49",
+    variable %in% c("16", "40") ~ "50 to 54",
+    variable %in% c("17", "41") ~ "55 to 59",
+    variable %in% c("18", "42") ~ "60 to 64",
+    variable %in% c("19", "43") ~ "60 to 64",
+    variable %in% c("20", "44") ~ "65 to 69",
+    variable %in% c("21", "45") ~ "65 to 69",
+    variable %in% c("22", "46") ~ "70 to 74",
+    variable %in% c("23", "47") ~ "75 to 79",
+    variable %in% c("24", "48") ~ "80 to 84",
+    variable %in% c("25", "49") ~ "85 or Older"))
+
+c2010<-c2010 %>% 
+  mutate(sex_cat = case_when(
+    variable %in% c("03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25") ~ "Male", 
+    variable %in% c("27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49") ~ "Female"))
+
+c2010<-c2010 %>% 
+  group_by(variable_cat, sex_cat) %>% 
+  summarise(Pop = sum(estimate))
+
+c2010<-c2010 %>% pivot_wider(names_from = sex_cat, values_from = Pop)
+
+c2015 <- get_acs("place", state="IL", table = "B01001", year = 2015, survey = "acs1")
+
+c2015 <- c2015 %>% filter(NAME == "Chicago city, Illinois") %>% 
+  mutate(variable = str_replace(variable, "B01001_0", "")) %>% filter(!variable %in% c("01", "02", "26"))
+
+c2015<-c2015 %>% 
+  mutate(variable_cat = case_when(
+    variable %in% c("03", "27") ~ "Under 5", 
+    variable %in% c("04", "28") ~ "5 to 9", 
+    variable %in% c("05", "29") ~ "10 to 14",
+    variable %in% c("06", "30") ~ "15 to 19",
+    variable %in% c("07", "31") ~ "15 to 19",
+    variable %in% c("08", "32") ~ "20 to 24",
+    variable %in% c("09", "33") ~ "20 to 24",
+    variable %in% c("10", "34") ~ "20 to 24",
+    variable %in% c("11", "35") ~ "25 to 29",
+    variable %in% c("12", "36") ~ "30 to 34",
+    variable %in% c("13", "37") ~ "35 to 39",
+    variable %in% c("14", "38") ~ "40 to 44",
+    variable %in% c("15", "39") ~ "45 to 49",
+    variable %in% c("16", "40") ~ "50 to 54",
+    variable %in% c("17", "41") ~ "55 to 59",
+    variable %in% c("18", "42") ~ "60 to 64",
+    variable %in% c("19", "43") ~ "60 to 64",
+    variable %in% c("20", "44") ~ "65 to 69",
+    variable %in% c("21", "45") ~ "65 to 69",
+    variable %in% c("22", "46") ~ "70 to 74",
+    variable %in% c("23", "47") ~ "75 to 79",
+    variable %in% c("24", "48") ~ "80 to 84",
+    variable %in% c("25", "49") ~ "85 or Older")) 
+
+c2015<-c2015 %>% 
+  mutate(sex_cat = case_when(
+    variable %in% c("03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25") ~ "Male", 
+    variable %in% c("27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49") ~ "Female"))
+
+c2015<-c2015 %>% 
+  group_by(variable_cat, sex_cat) %>% 
+  summarise(Pop = sum(estimate))
+
+c2015<-c2015 %>% pivot_wider(names_from = sex_cat, values_from = Pop)
+
+```
+For this lab, I examined and projected fertility rates for the City of Chicago. To do this, I used 2010 and 2015 birth data from the Illinois Department of Public Health, summarized in the table below. I also used the general population data, organized by gender and age. Then, I used a cohort-component Excel workbook provided by Klosterman to compute population projections based on the data.
+
+
+2010 Values
+
+| Mother Age | Males | Females |
+|-|-|-|
+| Under 15 | 43 | 41 |
+| 15-19 | 2472 | 2343 |
+| 20-24 | 4692 | 4448 |
+| 25-29 | 5135 | 4868 |
+| 30-34 | 5801 | 5499 |
+| 35-39 | 3055 | 2896 |
+| 40+ | 776 | 736 |
+
+2015 Values
+
+| Mother Age | Males | Females |
+|-|-|-|
+| Under 15 | 0 | 0 |
+| 15-19 | 1321 | 1243 |
+| 20-24 | 3972 | 3737 |
+| 25-29 | 4853 | 4566 |
+| 30-34 | 5980 | 5626 |
+| 35-39 | 3322 | 3125 |
+| 40+ | 782 | 736 |
+
+Below are the population pyramids that were produced as a result of the calculations. Based on the 2015 pyramid, it's apparent that millennials are the largest subset of the population, and that they are expected to give birth soon to what will become the largest subset of the population in 2040. As millennials age, so will the population of Chicago. With that generation making up so much of the population, it's inevitable that the city will require more services for seniors in 2040.
+
+Another major trend apparent in the population pyramid is the overall decrease in population. It seems likely that Chicago's population will continue to stagnate. If millenials do not contribute as many births as projected, or if the city continues to experience out-migration, it's likely that Chicago's population will decrease drastically. This could lead to a situation where the city is ill-equipped to take care of its aging population.
+
+```{r}
+knitr::include_graphics("fertility_proj.png")
+```
+# Transitioning from Projections into Forecasts
+
+These methods give you a basis upon which you can build stronger projections and forecasts. Based upon what you read in the Klosterman book, what contextual factors might be important for transitioning from projections for forecasts?
+
+Based upon what I read in the Klosterman book, developing a deeper understanding of the assumptions underlying projections is critical for transitioning to forecasts. According to his definition, a forecast is "a judgemental statement of what the analyst believes to be the most likely future." Often, forecasters weigh multiple projections and choose what they believe to be the most likely outcome in the future.
+
+In his book, Klosterman talks about two demographic trends (besides fertility) that are important to consider when forecasting: mortality and migration. To expand upon the work that I did in this lab, I will include some information on migration trends for Chicago. To calculate migration rates, Klosterman suggests using information from the American Community Survey (ACS). As a searched for that information, I found a "Census Flow Mapper" tool that allows you to map net-, in-, and out-migration flows for counties in the U.S. So, I decide to include the results for Cook County below.
+
+```{r}
+knitr::include_graphics("census_flow.png")
+```
+There are several details of this map that I find interesting. From looking at the information provided by ACS, I discovered that the vast majority of Cook County migrants are domestic, meaning that they are moving between states and counties. Overall, there are almost twice as many people leaving Cook County as there are moving to it (130,000 vs. 220,000). Many out-migrants are staying in the Midwest region and moving to rural and suburban counties in Illinois, Wisconsin, and Michigan. In-migrants appear to be moving from less-affordable urban centers such as the San Francisco Bay Area, Dallas, and New York.
+
+When I think of "migrants" in Chicago, I think of the city's large Latino and Polish populations - people who moved to the city from abroad and are likely to contribute to population growth. However, after looking at the migration statistics provided by ACS, it's clear that most "migrants" in Chicago are young professionals from the U.S. who moved to the city for employment opportunities. Forecasting migration trends, then, is a complicated task since we are still living through a pandemic and the long-term impacts of it on job/migration patterns remains difficult to predict. Policy economist, Stephan Whitaker, recently documented migration patterns between 2010-2021 and discovered that there has been a clear [urban exodus](https://www.clevelandfed.org/en/newsroom-and-events/publications/cfed-district-data-briefs/cfddb-20210205-did-the-covid-19-pandemic-cause-an-urban-exodus.aspx?source=content_type%3Areact%7Cfirst_level_url%3Aarticle%7Csection%3Amain_content%7Cbutton%3Abody_link) from major U.S. cities since the pandemic began. His analysis shows that the exodus is, in part, due to workers leaving large cities to work remotely from more affordable locations. But, his analysis also suggests that the out-migration numbers appear so high because the in-migration numbers are so low. With inter-generational housing situations on the rise in the pandemic, it's likely that many young workers will move back to large urban centers when the pandemic is over. 
+
+Still, it's clear that Chicago's population was shrinking and stagnating long before the pandemic began so it's unlikely that the post-pandemic world will bring an economic and population boom to the city. It seems reasonable to conclude that Chicago's population will continue to shrink through 2050, and that planning efforts should focus on preparing for an aging population instead of unlimited growth.
