@@ -1,0 +1,125 @@
+---
+title: "Project Background"
+author: "Gretchen Harrison"
+date: "4/2/2021"
+output: 
+  html_notebook:
+    toc: yes
+  pdf_document:
+    toc: yes
+  html_document:
+    df_print: paged
+    toc: yes
+editor_options:
+  
+  chunk_output_type: inline
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidycensus)
+library(readxl)
+```
+# Context and Background
+
+The purpose of my final project is to gain a better understanding of neighborhood-related trends in West Little Rock and determine what long-term impacts a road widening project may have on the area. The Arkansas Department of Transportation (ARDOT) announced the road project, targeted at widening an 8.3 mile segment of Highway 10, in 2016. The goal of the project is to reduce congestion and improve safety by widening the road from five lanes to seven. While Highway 10 is widely understood to be one of the most congested arterial roads in Little Rock, widening the road to alleviate traffic will completely change the character of the area, potentially harming the quality of life for residents and uprooting entire communities.
+
+I am particularly interested in analyzing neighborhood trends and developing forecasts for West Little Rock because it is the place where I grew up and the place that inspired me to become a planner. So, I feel it is only appropriate to spend my last semester of planning school applying my knowledge to a real-life project that I am personally invested in.
+
+In order to answer the questions that I have posed for my final project, I will develop a community profile, create population forecasts, and incorporate outside sources that will provide more context and allow me to better interpret the data. For the sake of this Project Background, I have decided to focus on developing my community profile. This will establish what the area looks like now, and set the groundwork for deeper analysis.
+
+# Methods and Approach
+
+For my project, I decided to collect data from five census tracts (based on 2010 data), which all directly border Highway 10. A map of the 2010 census tracts is provided below. For the sake of this analysis, I will be examining tracts 42.05, 42.12, 42.13, 42.14, and 42.15; respectively referred to as Pinnacle Valley, Charleston Heights, Chenal, Pankey, and River Mountain. While I am primarily interested in how Pankey and River Mountain will be impacted by the road widening project, I decided to include the other three tracts since they too border Highway 10 and may present opportunities for more comparative analysis.
+
+```{r 3_FactFinder, echo=FALSE, fig.caption="Census Tracts 2010", fig_width='50%'}
+knitr::include_graphics("2010censustracts.png")
+```
+
+The main precedent helping to inform my approach is the [Illinois Department of Transportation's Community Impact Assessment Manual](https://idot.illinois.gov/Assets/uploads/files/Doing-Business/Manuals-Guides-&-Handbooks/Highways/Design-and-Environment/Environment/CommunityImpactAssessmentManual.pdf). The manual offers guidance on socioeconomic and community impact assessments for the evaluation of transportation-related improvement projects. I am aware that Jesus Barajas and Lindsay Braun are developing recommendations for improving IDOT's Community Impact Assessment Manual, but I have decided to use the existing version from 2007 to frame my analysis. Considering ARDOT does not have any community-focused programs outside of NEPA, IDOT's community assessment manual is a valuable tool for analyzing the Highway 10 project from a new perspective.
+
+There are several questions about community characteristics and values that the manual states are important to consider during the decision-making process, including:
+
+- Are there anticipated short- and long-term changes to neighborhoods in the proposed project area(s)?
+- Could the proposed action cause a substantial change in the total population of any community?
+- Will there be segmentation, separation, or isolation of some area(s) from the existing community due to physical barriers or access changes?
+- Will the proposed action affect income distribution within the community?
+- Will there be bypass, or circumvention, of part or all of the community?
+- Will the project require relocation of residents?
+- Will the short and/or long-term effects alter the quality of life within the community (i.e., historic, environmental, and recreational)?
+- Will the major centers of employment be affected?
+- What are the existing and proposed land use patterns?
+
+For the Project Background, I will be collecting census data from the 2019 ACS 5-year estimates and developing a community profile. Factors included in this report include overall population size, race, median family income, median age, and education. Additional factors, such as employment, housing, community landmarks, and land use, will be incorporated into the final report.
+
+# Data
+## population size
+
+```{r, include=FALSE}
+census_api_key("1c21eb7b81694c448307c9d6819b1a52b997258c")
+```
+
+```{r, output=FALSE}
+tract_pop_2019 <- get_acs(geography = "tract", state = "Arkansas", county = "Pulaski", table = "B02001", year=2019, survey = "acs5", output = "wide")
+
+tract_pop_2019 %>% 
+  rename(pop_tot = B02001_001E) %>% 
+  select(NAME, pop_tot)
+
+tract_pop_2019 %>% 
+  filter(NAME %in% c("Census Tract 42.05, Pulaski County, Arkansas", "Census Tract 42.12, Pulaski County, Arkansas", "Census Tract 42.13, Pulaski County, Arkansas", "Census Tract 42.14, Pulaski County, Arkansas", "Census Tract 42.15, Pulaski County, Arkansas")) %>% 
+  rename(pop_tot = B02001_001E) %>% 
+  select(NAME, pop_tot)
+
+# Struggling with conceptualizing all of the steps that need to be done here. Ideally, I would like to include data from 2000 and 2010 in my final report to forecast future conditions. That means I would also like to be able to calculate percent change and determine what percent of the population represents certain characteristics. It feels like I have done all of those things before in other notebooks from this semester, but putting everything together and determining the sequence now is challenging.
+```
+
+Based on the 2019 ACS 5-year estimates, Charleston Heights has a population of 6,856, Chenal has a population of 4,649, Pankey has a population of 2,891, Pinnacle Valley has a population of 4,233, and River Mountain has a population of 5,504. The [2020 Census Tract Reference Map](https://www2.census.gov/geo/maps/DC2020/PL20/st05_ar/censustract_maps/c05119_pulaski/DC20CT_C05119.pdf) suggests that Charleston Heights, the most populous, has since been divided into two smaller tracts. Based on tract maps from 2000, 2010, and 2020, it's apparent that Charleston Heights and Chenal are the fastest growing areas as they have been divided into smaller units over time while the other tracts have retained fairly constant populations.
+
+## race
+
+```{r, output=FALSE}
+tract_pop_2019 %>% 
+  filter(NAME %in% c("Census Tract 42.05, Pulaski County, Arkansas", "Census Tract 42.12, Pulaski County, Arkansas", "Census Tract 42.13, Pulaski County, Arkansas", "Census Tract 42.14, Pulaski County, Arkansas", "Census Tract 42.15, Pulaski County, Arkansas")) %>% 
+  mutate(pop_other = B02001_001E-(B02001_002E + B02001_003E)) %>% 
+  rename(pop_tot = B02001_001E, pop_white = B02001_002E, pop_black = B02001_003E) %>% 
+  select(NAME, pop_white, pop_black, pop_other)
+```
+This table shows how many people deemed racially white, black, or other are residing in each census tract. Based on this data, from the 2019 ACS 5-year estimates, it's clear that Chenal and Charleston Heights have the highest percent white population and the lowest percent black population. Pinnacle Valley and River Mountain have the highest percent black population and the lowest percent other population. Pankey has the highest percent other population with about average white and black populations.
+
+In order to better understand racial trends in the study area and how those trends might be affected by the Highway 10 widening project, it is necessary to calculate projections. However, for the sake of this project background, it is only apparent that the areas that are growing in population are majority white while the areas that are stagnating are majority black or other.
+
+## median family income
+
+```{r}
+read.csv("medhi_2019.csv") 
+```
+
+This data, from 2019 ACS 5-year estimates, suggests that Chenal has the highest median household income while Pinnacle Valley has the lowest. Generally, this information seems to continue to support the narrative that Chenal and Charleston Heights are the most affluent neighborhoods while Pinnacle Valley is the least. As a former resident, it is quite apparent that most of these tracts are economically segregated, with lower income residents living closer to major roadways, like Highway 10, and higher income residents living farther away. It may be helpful to produce a map, with data from another source, showing property values or median household income directly tied to properties.
+
+## median age
+
+```{r, message=FALSE}
+read_xlsx("med_age.xlsx") 
+```
+
+To tidy up this information from the 2019 ACS 5-year estimates (Table BO1001), I first saved the census data as an excel file. Then, I grouped the age ranges into smaller categories, combined them by both age and gender, and uploaded the table into R.
+
+The data shows that children ages 0-17 make up the largest portion of the population in Charleston Heights and Chenal. This likely means that most people residing in those neighborhoods are families with young children. Meanwhile, Pinnacle Valley has a relatively old population while Pankey and River Mountain are primarily comprised of middle aged residents.
+
+# Preliminary Analysis
+
+The information provided in this Project Background regarding population, race, income, and age, paints a clear, yet broad, picture about the census tracts within the study area. Chenal and Charleston Heights are fast-growing areas with predominately young, white, single families. Pinnacle Valley, River Mountain, and Pankey are, by comparison, slightly older, less prone to experience new growth, and have larger minority populations.
+
+I wanted to use the Project Background as an opportunity to look at census data without committing to including everything in my final report. By pulling the data that I did, I gained a clearer understanding of what the scope of my project should be and what some of the limitations of data analysis are when you're looking at the neighborhood scale. Regarding IDOT's Community Impact Reference Manual, this information gave me clues as to how the Highway 10 widening project is likely to benefit certain communities and harm others. I think that, for the sake of my final project, I should exclude Chenal and Charleston Heights from my analysis. While they do serve as a good point of reference, I do feel as though they distract from the answers I'm really trying to find, which are related to how this transportation project will impact vulnerable communities.
+
+# Directions for the Future
+
+This Project Background is essentially a snapshot of what the study area population looks like today. It is difficult to truly analyze the data when I have not yet factored in information from previous censuses or developed projections for the future. For my final project, I would like to utilize housing, land use, and employment data. I believe that that information would greatly support my argument, provide new insight, and potentially shift my conclusions.
+
+Since I am familiar with this area, I would like to include more of my own perspective in my final project and share how I understand the area and see change occurring. There are several details that do not fit neatly into a data analysis report that could easily weave into the narrative for my final project. Specifically, information on community landmarks, transportation trends, and population change. Moving forward, I will focus on a smaller geographic area (Pankey, River Mountain, and potentially Pinnacle Valley), develop projections based on past and current census data, and work on incorporating more qualitative analysis.
+
