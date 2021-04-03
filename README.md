@@ -11,7 +11,7 @@
 | Class Reflections | 02/15/2021 | This folder contains my Week 1 reflection |
 | Polished Lab Notebooks | 03/19/2021 | This folder contains my first Polished Lab Notebook |
 | Final Project Proposal | 03/05/2021 | This folder contains my Final Project Proposal |
-| Final Project Background |  |  |
+| Final Project Background | 04/02/2021 | This folder contains my Final Project Background |
 | Final Project Presentation |  |  |
 | Final Project |  |  |
 
