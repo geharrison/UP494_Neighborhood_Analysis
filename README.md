@@ -8,7 +8,7 @@
 |-|-|-|
 | Grading Contract | 02/19/2021 | This folder contains the latest version of my learning contract |
 | R Learner's Permit | 02/19/2021 | This folder contains my R Learner's Permit |
-| Class Reflections | 02/15/2021 | This folder contains my Week 1 reflection |
+| Class Reflections | 05/13/2021 | This folder contains my Week 1-7 reflections |
 | Polished Lab Notebooks | 03/19/2021 | This folder contains my first Polished Lab Notebook |
 | Final Project Proposal | 03/05/2021 | This folder contains my Final Project Proposal |
 | Final Project Background | 04/02/2021 | This folder contains my Final Project Background |
